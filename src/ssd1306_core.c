@@ -3,14 +3,23 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+static uint8_t height = SSD1306_HEIGHT_64;
+static uint8_t pages = SSD1306_HEIGHT_64 / SSD1306_PAGE_HEIGHT;
+
+const font_t Font5x8 = { 5, 8, 1, 32, 126, (const uint8_t *)font5x8 };
+
 static uint8_t cur_scale = 1;
-const font_def Font5x8 = { 5, 8, 1, 32, 126, (const uint8_t *)font5x8 };
-static const font_def *cur_font = &Font5x8;
+static const font_t *cur_font = &Font5x8;
 
 static uint16_t cmd_buf_caret;
 static uint8_t cmd_buf[31];
 static uint16_t data_buf_caret;
-static uint8_t data_buf[SSD1306_WIDTH * SSD1306_PAGES];
+static uint16_t update_data_buf_caret;
+static uint8_t *data_buf = 0;
+
+static uint8_t data_buf_16[SSD1306_WIDTH * SSD1306_HEIGHT_16 / SSD1306_PAGE_HEIGHT];
+static uint8_t data_buf_32[SSD1306_WIDTH * SSD1306_HEIGHT_32 / SSD1306_PAGE_HEIGHT];
+static uint8_t data_buf_64[SSD1306_WIDTH * SSD1306_HEIGHT_64 / SSD1306_PAGE_HEIGHT];
 
 static void add_command(uint8_t cmd) {
   cmd_buf[cmd_buf_caret] = cmd;
@@ -20,6 +29,9 @@ static void add_command(uint8_t cmd) {
 static void add_data(uint8_t *data, uint8_t len) {
   memcpy(&data_buf[data_buf_caret], data, len);
   data_buf_caret += len;
+  if (data_buf_caret > update_data_buf_caret) {
+    update_data_buf_caret = data_buf_caret;
+  }
 }
 
 // 1. Fundamental Command Table
@@ -91,8 +103,8 @@ static void set_column_address(uint8_t start, uint8_t end) {
 // end: 0-7d, (RESET = 7d)
 // Note: This command is only for horizontal or vertical addressing mode.
 static void set_page_address(uint8_t start, uint8_t end) {
-  if (end > SSD1306_PAGES - 1) {
-    end = SSD1306_PAGES - 1;
+  if (end > pages - 1) {
+    end = pages - 1;
   }
   if (start > end) {
     start = end;
@@ -105,8 +117,8 @@ static void set_page_address(uint8_t start, uint8_t end) {
 // (0d after RESET)
 // Note: This command is only for page addressing mode
 static void set_page_start_address(uint8_t page) {
-  if (page > SSD1306_PAGES - 1) {
-    page = SSD1306_PAGES - 1;
+  if (page > pages - 1) {
+    page = pages - 1;
   }
   add_command(0xB0 | page);
 }
@@ -115,8 +127,8 @@ static void set_page_start_address(uint8_t page) {
 
 // (0d during RESET)
 static void set_display_start_line(uint8_t line) {
-  if (line > SSD1306_HEIGHT - 1) {
-    line = SSD1306_HEIGHT - 1;
+  if (line > height - 1) {
+    line = height - 1;
   }
   add_command(0x40 | line);
 }
@@ -139,8 +151,8 @@ static void set_com_scan_direction(bool remapped) {
 
 // (RESET = 0d)
 static void set_display_offset(uint8_t offset) {
-  if (offset > SSD1306_HEIGHT - 1) {
-    offset = SSD1306_HEIGHT - 1;
+  if (offset > height - 1) {
+    offset = height - 1;
   }
   add_command(0xD3);
   add_command(offset);
@@ -209,7 +221,7 @@ static void scale_column(uint8_t col, uint8_t *out) {
       uint8_t byte_index = dst_row / 8;
       uint8_t bit_index = dst_row % 8;
 
-      out[byte_index] |= (1 << bit_index);
+      out[byte_index] |= (0x01 << bit_index);
     }
   }
 }
@@ -218,20 +230,20 @@ static void ssd1306_set_char(uint8_t x, uint8_t y, char c) {
   if ((uint8_t)c < cur_font->first_char || (uint8_t)c > cur_font->last_char) {
     return;
   }
-  if (x + cur_font->width > SSD1306_WIDTH || y + cur_font->height > SSD1306_HEIGHT) {
+  if (x + cur_font->width > SSD1306_WIDTH || y + cur_font->height > height) {
     return;
   }
 
   uint16_t char_index = (uint8_t)c - cur_font->first_char;
   uint16_t base_offset = char_index * cur_font->width;
 
-  const uint8_t *bitmap = &cur_font->data[char_index * cur_font->width];
+  const uint8_t *bitmap = &cur_font->data[base_offset];
   uint8_t start_page = y / SSD1306_PAGE_HEIGHT;
   uint8_t y_offset = y % SSD1306_PAGE_HEIGHT;
 
   for (uint8_t col = 0; col < cur_font->width; col++) {
     uint8_t col_data = pgm_read_byte(cur_font->data + base_offset + col);
-    uint8_t scaled_bytes[(cur_font->height * SSD1306_MAX_SCALE + 7) / 8];
+    uint8_t scaled_bytes[(cur_font->height * SSD1306_MAX_SCALE + SSD1306_PAGE_HEIGHT - 1) / SSD1306_PAGE_HEIGHT];
     scale_column(col_data, scaled_bytes);
 
     for (uint8_t h = 0; h < cur_scale; h++) {
@@ -241,11 +253,34 @@ static void ssd1306_set_char(uint8_t x, uint8_t y, char c) {
 
         uint16_t buf_index = (start_page + i) * SSD1306_WIDTH + (x + col * cur_scale + h);
         data_buf[buf_index] |= upper;
+        if (buf_index + 1 > update_data_buf_caret) {
+          update_data_buf_caret = buf_index + 1;
+        }
         if (lower) {
           data_buf[buf_index + SSD1306_WIDTH] |= lower;
+          if (buf_index + SSD1306_WIDTH + 1 > update_data_buf_caret) {
+            update_data_buf_caret = buf_index + SSD1306_WIDTH + 1;
+          }
         }
       }
     }
+  }
+}
+
+void ssd1306_setup(ssd1306_height_t ssd1306_height) {
+  height = ssd1306_height;
+  pages = height / SSD1306_PAGE_HEIGHT;
+
+  switch (ssd1306_height) {
+    case 16:
+      data_buf = data_buf_16;
+      break;
+    case 32:
+      data_buf = data_buf_32;
+      break;
+    default:
+      data_buf = data_buf_64;
+      break;
   }
 }
 
@@ -260,23 +295,27 @@ void ssd1306_init(void) {
   // set_column_start_address(0);
   // set_memory_addressing_mode(SSD1306_MEMORY_ADDRESSING_MODE_PAGE);
   // set_column_address(0, SSD1306_WIDTH - 1);
-  // set_page_address(0, SSD1306_PAGES - 1);
+  // set_page_address(0, pages - 1);
   // set_page_start_address(0);
 
   set_display_start_line(0);
   set_segment_remap(false);
   ssd1306_mux_t mux;
-  if (SSD1306_HEIGHT == 16) {
+  ssd1306_com_pins_t com_pins;
+  if (height == 16) {
     mux = SSD1306_MULTIPLEX_RATIO_16;
-  } else if (SSD1306_HEIGHT == 32) {
+    com_pins = SSD1306_COM_PINS_SEQUENTIAL_NO_REMAP;
+  } else if (height == 32) {
     mux = SSD1306_MULTIPLEX_RATIO_32;
+    com_pins = SSD1306_COM_PINS_SEQUENTIAL_NO_REMAP;
   } else {
     mux = SSD1306_MULTIPLEX_RATIO_64;
+    com_pins = SSD1306_COM_PINS_ALTERNATIVE_NO_REMAP;
   }
   set_multiplex_ratio(mux);
   set_com_scan_direction(false);
   set_display_offset(0);
-  set_com_pins(SSD1306_COM_PINS_ALTERNATIVE_NO_REMAP);
+  set_com_pins(com_pins);
 
   set_display_clock(0, 8);
   set_precharge_period(0x22);
@@ -289,7 +328,7 @@ void ssd1306_init(void) {
   ssd1306_i2c_write(0x00, cmd_buf, cmd_buf_caret);
 }
 
-void ssd1306_set_font(const font_def *font) {
+void ssd1306_set_font(const font_t *font) {
   cur_font = font;
 }
 
@@ -304,16 +343,16 @@ void ssd1306_set_caret(uint8_t x, uint8_t y) {
   if (x > SSD1306_WIDTH - 1) {
     x = SSD1306_WIDTH - 1;
   }
-  if (y > SSD1306_HEIGHT - 1) {
-    y = SSD1306_HEIGHT - 1;
+  if (y > height - 1) {
+    y = height - 1;
   }
   data_buf_caret = x + y * SSD1306_WIDTH;
 }
 
 void ssd1306_clear(void) {
-  memset(&data_buf[0], 0, SSD1306_WIDTH * SSD1306_PAGES);
-  ssd1306_i2c_write(0x40, data_buf, SSD1306_WIDTH * SSD1306_PAGES);
-  data_buf_caret = 0;
+  memset(&data_buf[0], 0, SSD1306_WIDTH * pages);
+  update_data_buf_caret = SSD1306_WIDTH * pages;
+  ssd1306_set_caret(0, 0);
 }
 
 void ssd1306_set_text(const char *str) {
@@ -335,8 +374,9 @@ void ssd1306_update(void) {
   cmd_buf_caret = 0;
   set_memory_addressing_mode(SSD1306_MEMORY_ADDRESSING_MODE_HORIZONTAL);
   set_column_address(0, SSD1306_WIDTH - 1);
-  set_page_address(0, SSD1306_HEIGHT - 1);
+  set_page_address(0, height - 1);
   ssd1306_i2c_write(0x00, cmd_buf, cmd_buf_caret);
 
-  ssd1306_i2c_write(0x40, data_buf, SSD1306_WIDTH * SSD1306_PAGES);
+  ssd1306_i2c_write(0x40, data_buf, update_data_buf_caret);
+  update_data_buf_caret = 0;
 }

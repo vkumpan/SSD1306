@@ -4,19 +4,11 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#ifndef SSD1306_ADDR
 #define SSD1306_ADDR 0x3C
-#endif
 
 #define SSD1306_WIDTH 128
 
-#ifndef SSD1306_HEIGHT
-#define SSD1306_HEIGHT 64
-#endif
-
 #define SSD1306_PAGE_HEIGHT 8
-
-#define SSD1306_PAGES (SSD1306_HEIGHT / SSD1306_PAGE_HEIGHT)
 
 #define SSD1306_MAX_SCALE 8
 
@@ -27,12 +19,18 @@ typedef struct {
   const uint8_t first_char;
   const uint8_t last_char;
   const uint8_t *data;
-} font_def;
+} font_t;
 
 typedef enum {
-  SSD1306_MEMORY_ADDRESSING_MODE_HORIZONTAL,
-  SSD1306_MEMORY_ADDRESSING_MODE_VERTICAL,
-  SSD1306_MEMORY_ADDRESSING_MODE_PAGE
+  SSD1306_HEIGHT_16 = 16,
+  SSD1306_HEIGHT_32 = 32,
+  SSD1306_HEIGHT_64 = 64
+} ssd1306_height_t;
+
+typedef enum {
+  SSD1306_MEMORY_ADDRESSING_MODE_HORIZONTAL = 0x00,
+  SSD1306_MEMORY_ADDRESSING_MODE_VERTICAL = 0x01,
+  SSD1306_MEMORY_ADDRESSING_MODE_PAGE = 0x02
 } ssd1306_mam_t;
 
 typedef enum {
@@ -54,7 +52,7 @@ typedef enum {
   SSD1306_VCOMH_083 = 0x30
 } ssd1306_vcomh_t;
 
-extern const font_def Font5x8;
+extern const font_t Font5x8;
 
 #ifdef __cplusplus
 extern "C" {
@@ -64,8 +62,9 @@ extern "C" {
   void ssd1306_delay(uint16_t ms);
   void ssd1306_print(const char *msg);
 
+  void ssd1306_setup(ssd1306_height_t ssd1306_height);
   void ssd1306_init(void);
-  void ssd1306_set_font(const font_def *font);
+  void ssd1306_set_font(const font_t *font);
   void ssd1306_set_scale(uint8_t scale);
   void ssd1306_clear(void);
   void ssd1306_set_caret(uint8_t x, uint8_t y);

@@ -2,6 +2,8 @@
 #include <Wire.h>
 
 SSD1306 display;
+// use this for 128x32 displays
+// SSD1306 display(SSD1306_HEIGHT_32);
 
 void setup() {
   Serial.begin(9600);

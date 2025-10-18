@@ -33,6 +33,11 @@ void ssd1306_i2c_write(uint8_t control, const uint8_t *data, uint16_t len) {
 }
 
 SSD1306::SSD1306() {
+  ssd1306_setup(SSD1306_HEIGHT_64);
+}
+
+SSD1306::SSD1306(ssd1306_height_t ssd1306_height) {
+  ssd1306_setup(ssd1306_height);
 }
 
 void SSD1306::init() {
@@ -43,7 +48,7 @@ void SSD1306::clear() {
   ssd1306_clear();
 }
 
-void SSD1306::setFont(const font_def *font) {
+void SSD1306::setFont(const font_t *font) {
   ssd1306_set_font(font);
 }
 
