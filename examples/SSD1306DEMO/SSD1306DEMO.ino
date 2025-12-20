@@ -12,18 +12,19 @@ void setup() {
   display.init();
   display.clear();
 
-  display.setText(F("!\"#$%&'()*+,-./"));
-  display.setCaret(15, 10);
+  display.print('!');
+  display.print(F("\"#$%&'()*+,-./"));
+  display.setCaret(10, 10);
   display.setScale(2);
-  display.setText(F("0123456789"));
+  display.print(F("0123456789"));
   display.setCaret(40, 28);
   display.setScale(1);
-  display.setText(F(":;<=>?@"));
+  display.print(F(":;<=>?@"));
   display.setCaret(0, 40);
-  display.setText(F("ABCDEFGHIJKLMNOPQRSTUVWXYZ"));
-  display.setText(F("[\]^_`"));
-  display.setText(F("abcdefghijklmnopqrstuvwxyz"));
-  display.setText(F("{|}~"));
+  display.print(F("ABCDEFGHIJKLMNOPQRSTUVWXYZ"));
+  display.print(F("[\\]^_`"));
+  display.print(F("abcdefghijklmnopqrstuvwxyz"));
+  display.print(F("{|}~"));
 
   display.update();
 }

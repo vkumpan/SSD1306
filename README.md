@@ -1,12 +1,12 @@
 # SSD1306 Arduino Library  
 
-Lightweight Arduino library for controlling **SSD1306 OLED displays (e.g., 128×64, 128×32)** with a simple text-only interface.
+Lightweight Arduino library for controlling **SSD1306 OLED displays (e.g., 128×64, 128×32, 128×16)** with a simple text-only interface.
 Includes support for scaling text, setting precise cursor positions (even between pages), and printing from RAM or flash (PROGMEM).  
 
 ---
 
 ## Features  
-- Supports SSD1306-based I²C OLED displays (commonly 128×64 or 128×32).
+- Supports SSD1306-based I²C OLED displays (commonly 128×64, 128×32 or 128×16).
 - Text rendering with built-in 5×8 font.
 - Scalable text size — zoom 1× to 8×.
 - Precise caret positioning, including positions between display pages (e.g., y = 10).
@@ -43,18 +43,19 @@ void setup() {
   display.init();
   display.clear();
 
-  display.setText(F("!\"#$%&'()*+,-./"));
-  display.setCaret(15, 10);
+  display.print('!');
+  display.print(F("\"#$%&'()*+,-./"));
+  display.setCaret(10, 10);
   display.setScale(2);
-  display.setText(F("0123456789"));
+  display.print(F("0123456789"));
   display.setCaret(40, 28);
   display.setScale(1);
-  display.setText(F(":;<=>?@"));
+  display.print(F(":;<=>?@"));
   display.setCaret(0, 40);
-  display.setText(F("ABCDEFGHIJKLMNOPQRSTUVWXYZ"));
-  display.setText(F("[\]^_`"));
-  display.setText(F("abcdefghijklmnopqrstuvwxyz"));
-  display.setText(F("{|}~"));
+  display.print(F("ABCDEFGHIJKLMNOPQRSTUVWXYZ"));
+  display.print(F("[\\]^_`"));
+  display.print(F("abcdefghijklmnopqrstuvwxyz"));
+  display.print(F("{|}~"));
 
   display.update();
 }

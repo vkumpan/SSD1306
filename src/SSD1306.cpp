@@ -8,7 +8,11 @@ void ssd1306_delay(uint16_t ms) {
   delay(ms);
 }
 
-void ssd1306_print(const char *msg) {
+void ssd1306_log(const char *msg) {
+  Serial.println(msg);
+}
+
+void ssd1306_log_num(const uint16_t msg) {
   Serial.println(msg);
 }
 
@@ -56,48 +60,37 @@ void SSD1306::setScale(uint8_t scale) {
   ssd1306_set_scale(scale);
 }
 
-void SSD1306::setCaret(uint8_t x, uint8_t y) {
-  ssd1306_set_caret(x, y);
+void SSD1306::setCaret(uint8_t col, uint8_t row) {
+  ssd1306_set_caret(col, row);
 }
 
-void SSD1306::setText(const __FlashStringHelper *fstr) {
+void SSD1306::print(char c) {
+  ssd1306_print_char(c);
+}
+
+void SSD1306::print(const __FlashStringHelper *fstr) {
   PGM_P p = (PGM_P)fstr;
-  uint8_t chunkSize = 21;
-  char tmp[chunkSize + 1];
-  uint8_t len = 0;
-  char c;
-  while ((c = (char)pgm_read_byte(p++))) {
-    tmp[len++] = c;
-    if (len == chunkSize) {
-      tmp[len] = '\0';
-      ssd1306_set_text(tmp);
-      len = 0;
-    }
-  }
-  if (len > 0) {
-    tmp[len] = '\0';
-    ssd1306_set_text(tmp);
-  }
+  ssd1306_print(p);
 }
 
-void SSD1306::setText(const char *str) {
-  ssd1306_set_text(str);
+void SSD1306::print(const char *str) {
+  ssd1306_print(str);
 }
 
-void SSD1306::setText(int val) {
+void SSD1306::print(int val) {
   char buf[16];
   snprintf(buf, sizeof(buf), "%d", val);
-  ssd1306_set_text(buf);
+  ssd1306_print(buf);
 }
 
-void SSD1306::setText(float val, uint8_t decimals = 2) {
+void SSD1306::print(float val, uint8_t decimals = 2) {
   char buf[32];
   dtostrf(val, 0, decimals, buf);
-  ssd1306_set_text(buf);
+  ssd1306_print(buf);
 }
 
-void SSD1306::setText(bool val) {
-  ssd1306_set_text(val ? "true" : "false");
+void SSD1306::print(bool val) {
+  ssd1306_print(val ? "true" : "false");
 }
 
 void SSD1306::update() {

@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include <avr/pgmspace.h>
 
 #define SSD1306_ADDR 0x3C
 
@@ -60,15 +61,17 @@ extern "C" {
 
   void ssd1306_i2c_write(uint8_t control, const uint8_t *data, uint16_t len);
   void ssd1306_delay(uint16_t ms);
-  void ssd1306_print(const char *msg);
+  void ssd1306_log(const char *msg);
+  void ssd1306_log_num(const uint16_t msg);
 
   void ssd1306_setup(ssd1306_height_t ssd1306_height);
   void ssd1306_init(void);
   void ssd1306_set_font(const font_t *font);
   void ssd1306_set_scale(uint8_t scale);
   void ssd1306_clear(void);
-  void ssd1306_set_caret(uint8_t x, uint8_t y);
-  void ssd1306_set_text(const char *str);
+  void ssd1306_set_caret(uint8_t col, uint8_t row);
+  void ssd1306_print_char(char c);
+  void ssd1306_print(PGM_P p);
   void ssd1306_update(void);
 
 #ifdef __cplusplus

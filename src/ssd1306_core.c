@@ -11,27 +11,19 @@ const font_t Font5x8 = { 5, 8, 1, 32, 126, (const uint8_t *)font5x8 };
 static uint8_t cur_scale = 1;
 static const font_t *cur_font = &Font5x8;
 
-static uint16_t cmd_buf_caret;
+static uint16_t cmd_buf_index = 0;
 static uint8_t cmd_buf[31];
-static uint16_t data_buf_caret;
-static uint16_t update_data_buf_caret;
-static uint8_t *data_buf = 0;
+static uint16_t data_buf_index = 0;
+static uint16_t update_data_buf_index = 0;
+static uint8_t *data_buf;
 
 static uint8_t data_buf_16[SSD1306_WIDTH * SSD1306_HEIGHT_16 / SSD1306_PAGE_HEIGHT];
 static uint8_t data_buf_32[SSD1306_WIDTH * SSD1306_HEIGHT_32 / SSD1306_PAGE_HEIGHT];
 static uint8_t data_buf_64[SSD1306_WIDTH * SSD1306_HEIGHT_64 / SSD1306_PAGE_HEIGHT];
 
 static void add_command(uint8_t cmd) {
-  cmd_buf[cmd_buf_caret] = cmd;
-  cmd_buf_caret += 1;
-}
-
-static void add_data(uint8_t *data, uint8_t len) {
-  memcpy(&data_buf[data_buf_caret], data, len);
-  data_buf_caret += len;
-  if (data_buf_caret > update_data_buf_caret) {
-    update_data_buf_caret = data_buf_caret;
-  }
+  cmd_buf[cmd_buf_index] = cmd;
+  cmd_buf_index++;
 }
 
 // 1. Fundamental Command Table
@@ -208,9 +200,9 @@ static void set_charge_pump_setting(bool enable) {
 }
 
 static void scale_column(uint8_t col, uint8_t *out) {
-  memset(out, 0, (cur_font->height * SSD1306_MAX_SCALE + 7) / 8);
+  memset(out, 0, cur_scale);
 
-  for (uint8_t i = 0; i < cur_font->height; i++) {
+  for (uint8_t i = 0; i < 8; i++) {
     uint8_t bit = (col >> i) & 0x01;
     if (!bit) {
       continue;
@@ -226,42 +218,30 @@ static void scale_column(uint8_t col, uint8_t *out) {
   }
 }
 
-static void ssd1306_set_char(uint8_t x, uint8_t y, char c) {
-  if ((uint8_t)c < cur_font->first_char || (uint8_t)c > cur_font->last_char) {
-    return;
-  }
-  if (x + cur_font->width > SSD1306_WIDTH || y + cur_font->height > height) {
-    return;
-  }
-
-  uint16_t char_index = (uint8_t)c - cur_font->first_char;
-  uint16_t base_offset = char_index * cur_font->width;
-
-  const uint8_t *bitmap = &cur_font->data[base_offset];
-  uint8_t start_page = y / SSD1306_PAGE_HEIGHT;
-  uint8_t y_offset = y % SSD1306_PAGE_HEIGHT;
-
-  for (uint8_t col = 0; col < cur_font->width; col++) {
-    uint8_t col_data = pgm_read_byte(cur_font->data + base_offset + col);
-    uint8_t scaled_bytes[(cur_font->height * SSD1306_MAX_SCALE + SSD1306_PAGE_HEIGHT - 1) / SSD1306_PAGE_HEIGHT];
+void set_column_data(uint8_t col, uint8_t page, uint8_t page_offset, uint8_t col_data) {
+  uint8_t scaled_bytes[cur_scale];
+  if (cur_scale == 1) {
+    scaled_bytes[0] = col_data;
+  } else {
     scale_column(col_data, scaled_bytes);
+  }
+  for (uint8_t scale_h = 0; scale_h < cur_scale; scale_h++) {
+    for (uint8_t scale_w = 0; scale_w < cur_scale; scale_w++) {
+      uint8_t upper = scaled_bytes[scale_w] << page_offset;
+      uint8_t lower = scaled_bytes[scale_w] >> (SSD1306_PAGE_HEIGHT - page_offset);
 
-    for (uint8_t h = 0; h < cur_scale; h++) {
-      for (uint8_t i = 0; i < cur_scale; i++) {
-        uint8_t upper = scaled_bytes[i] << y_offset;
-        uint8_t lower = scaled_bytes[i] >> (SSD1306_PAGE_HEIGHT - y_offset);
+      uint16_t buf_index = (page + scale_w) * SSD1306_WIDTH + (col + scale_h);
+      if (buf_index > SSD1306_WIDTH * pages - 1) {
+        continue;
+      }
+      data_buf[buf_index] |= upper;
+      if (lower) {
+        buf_index = buf_index + SSD1306_WIDTH;
+        data_buf[buf_index] |= lower;
+      }
 
-        uint16_t buf_index = (start_page + i) * SSD1306_WIDTH + (x + col * cur_scale + h);
-        data_buf[buf_index] |= upper;
-        if (buf_index + 1 > update_data_buf_caret) {
-          update_data_buf_caret = buf_index + 1;
-        }
-        if (lower) {
-          data_buf[buf_index + SSD1306_WIDTH] |= lower;
-          if (buf_index + SSD1306_WIDTH + 1 > update_data_buf_caret) {
-            update_data_buf_caret = buf_index + SSD1306_WIDTH + 1;
-          }
-        }
+      if (buf_index > update_data_buf_index) {
+        update_data_buf_index = buf_index;
       }
     }
   }
@@ -285,7 +265,7 @@ void ssd1306_setup(ssd1306_height_t ssd1306_height) {
 }
 
 void ssd1306_init(void) {
-  cmd_buf_caret = 0;
+  cmd_buf_index = 0;
 
   set_contrast_control(50);
   set_entire_display_on(false);
@@ -293,7 +273,7 @@ void ssd1306_init(void) {
   set_display_on_off(false);
 
   // set_column_start_address(0);
-  // set_memory_addressing_mode(SSD1306_MEMORY_ADDRESSING_MODE_PAGE);
+  set_memory_addressing_mode(SSD1306_MEMORY_ADDRESSING_MODE_HORIZONTAL);
   // set_column_address(0, SSD1306_WIDTH - 1);
   // set_page_address(0, pages - 1);
   // set_page_start_address(0);
@@ -325,7 +305,7 @@ void ssd1306_init(void) {
 
   set_display_on_off(true);
 
-  ssd1306_i2c_write(0x00, cmd_buf, cmd_buf_caret);
+  ssd1306_i2c_write(0x00, cmd_buf, cmd_buf_index + 1);
 }
 
 void ssd1306_set_font(const font_t *font) {
@@ -333,50 +313,95 @@ void ssd1306_set_font(const font_t *font) {
 }
 
 void ssd1306_set_scale(uint8_t scale) {
+  if (scale == 0) {
+    scale = 1;
+  }
   if (scale > 8) {
     scale = 8;
   }
   cur_scale = scale;
 }
 
-void ssd1306_set_caret(uint8_t x, uint8_t y) {
-  if (x > SSD1306_WIDTH - 1) {
-    x = SSD1306_WIDTH - 1;
+void ssd1306_set_caret(uint8_t col, uint8_t row) {
+  if (col > SSD1306_WIDTH - 1) {
+    col = SSD1306_WIDTH - 1;
   }
-  if (y > height - 1) {
-    y = height - 1;
+  if (row > height - 1) {
+    row = height - 1;
   }
-  data_buf_caret = x + y * SSD1306_WIDTH;
+
+  data_buf_index = row * SSD1306_WIDTH + col;
 }
 
 void ssd1306_clear(void) {
   memset(&data_buf[0], 0, SSD1306_WIDTH * pages);
-  update_data_buf_caret = SSD1306_WIDTH * pages;
-  ssd1306_set_caret(0, 0);
+
+  update_data_buf_index = SSD1306_WIDTH * pages - 1;
 }
 
-void ssd1306_set_text(const char *str) {
-  uint8_t y = data_buf_caret / SSD1306_WIDTH;
-  uint8_t x = data_buf_caret % SSD1306_WIDTH;
+void ssd1306_print_char(char c) {
+  if ((uint8_t)c < cur_font->first_char || (uint8_t)c > cur_font->last_char) {
+    return;
+  }
 
-  while (*str) {
-    ssd1306_set_char(x, y, *str++);
-    x += cur_font->width * cur_scale + cur_font->space;
-    if ((x + cur_font->width * cur_scale) > SSD1306_WIDTH) {
-      x = 0;
-      y += SSD1306_PAGE_HEIGHT * cur_scale;
+  uint8_t row = data_buf_index / SSD1306_WIDTH;
+  uint8_t col = data_buf_index % SSD1306_WIDTH;
+  if (col + cur_font->width * cur_scale > SSD1306_WIDTH) {
+    col = 0;
+    row += SSD1306_PAGE_HEIGHT * cur_scale;
+    ssd1306_set_caret(col, row);
+  }
+  if (cur_font->height * cur_scale + row > height) {
+    return;
+  }
+
+  uint16_t char_index = (uint8_t)c - cur_font->first_char;
+  uint16_t char_offset = char_index * cur_font->width;
+  const uint8_t *bitmap = &cur_font->data[char_offset];
+  uint8_t page = row / SSD1306_PAGE_HEIGHT;
+  uint8_t page_offset = row % SSD1306_PAGE_HEIGHT;
+
+  for (uint8_t font_col = 0; font_col < cur_font->width; font_col++) {
+    uint8_t col_data = pgm_read_byte(bitmap + font_col);
+    set_column_data(col + font_col * cur_scale, page, page_offset, col_data);
+  }
+
+  col = col + cur_font->width * cur_scale + cur_font->space;
+
+  ssd1306_set_caret(col, row);
+}
+
+void ssd1306_print(PGM_P p) {
+  uint8_t chunkSize = 21;
+  char tmp[chunkSize + 1];
+  uint8_t len = 0;
+  char c;
+  while ((c = (char)pgm_read_byte(p++))) {
+    tmp[len++] = c;
+    if (len == chunkSize) {
+      tmp[len] = '\0';
+      char *str = tmp;
+      while (*str) {
+        ssd1306_print_char(*str++);
+      }
+      len = 0;
     }
   }
-  ssd1306_set_caret(x, y);
+  if (len > 0) {
+    tmp[len] = '\0';
+    char *str = tmp;
+    while (*str) {
+      ssd1306_print_char(*str++);
+    }
+  }
 }
 
 void ssd1306_update(void) {
-  cmd_buf_caret = 0;
-  set_memory_addressing_mode(SSD1306_MEMORY_ADDRESSING_MODE_HORIZONTAL);
+  cmd_buf_index = 0;
   set_column_address(0, SSD1306_WIDTH - 1);
-  set_page_address(0, height - 1);
-  ssd1306_i2c_write(0x00, cmd_buf, cmd_buf_caret);
+  set_page_address(0, pages - 1);
+  ssd1306_i2c_write(0x00, cmd_buf, cmd_buf_index + 1);
 
-  ssd1306_i2c_write(0x40, data_buf, update_data_buf_caret);
-  update_data_buf_caret = 0;
+  ssd1306_i2c_write(0x40, data_buf, update_data_buf_index + 1);
+  update_data_buf_index = 0;
 }
