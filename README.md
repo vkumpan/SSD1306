@@ -13,6 +13,7 @@ Includes support for scaling text, setting precise cursor positions (even betwee
 - Supports multiple text sources:
 	- Regular RAM strings ("Hello")
 	- Flash strings (F("Hello from PROGMEM"))
+	- Single characters ('A')
 	- Numbers (int, float, bool)
 
 ---
