@@ -83,7 +83,7 @@ void SSD1306::print(int val) {
   ssd1306_print(buf);
 }
 
-void SSD1306::print(float val, uint8_t decimals = 2) {
+void SSD1306::print(float val, uint8_t decimals) {
   char buf[32];
   dtostrf(val, 0, decimals, buf);
   ssd1306_print(buf);
