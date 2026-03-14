@@ -371,7 +371,13 @@ void ssd1306_print_char(char c) {
   ssd1306_set_caret(col, row);
 }
 
-void ssd1306_print(PGM_P p) {
+void ssd1306_print(const char* str) {
+  while (*str) {
+    ssd1306_print_char(*str++);
+  }
+}
+
+void ssd1306_print_pgm(PGM_P p) {
   uint8_t chunkSize = 21;
   char tmp[chunkSize + 1];
   uint8_t len = 0;

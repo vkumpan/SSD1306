@@ -71,7 +71,8 @@ extern "C" {
   void ssd1306_clear(void);
   void ssd1306_set_caret(uint8_t col, uint8_t row);
   void ssd1306_print_char(char c);
-  void ssd1306_print(PGM_P p);
+  void ssd1306_print_pgm(PGM_P p);
+  void ssd1306_print(const char* str);
   void ssd1306_update(void);
 
 #ifdef __cplusplus

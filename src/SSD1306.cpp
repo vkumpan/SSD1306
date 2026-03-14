@@ -70,7 +70,7 @@ void SSD1306::print(char c) {
 
 void SSD1306::print(const __FlashStringHelper *fstr) {
   PGM_P p = (PGM_P)fstr;
-  ssd1306_print(p);
+  ssd1306_print_pgm(p);
 }
 
 void SSD1306::print(const char *str) {
