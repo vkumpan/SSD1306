@@ -18,6 +18,15 @@ Includes support for scaling text, setting precise cursor positions (even betwee
 
 ---
 
+## Datasheet
+
+For detailed information about the controller and command set, see the official datasheet:
+
+- SSD1306 OLED Controller Datasheet  
+  https://cdn-shop.adafruit.com/datasheets/SSD1306.pdf
+
+---
+
 ## Installation  
 1. Download or clone this repository into your Arduino `libraries` folder.  
 2. Restart the Arduino IDE.  
